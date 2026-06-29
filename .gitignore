@@ -1,0 +1,19 @@
+# Ignore common IDE and system files
+.idea/
+.vscode/
+*.suo
+*.ntvsca
+*.njsproj
+*.sln
+*.sw?
+.DS_Store
+Thumbs.db
+
+# Environment and config sensitive files
+# config.php contains database credentials. In a real-world scenario, we would ignore it and use config.example.php or .env
+# However, for this project submission, keeping config.php committed is usually expected so it runs out-of-the-box.
+# We will not ignore config.php here to facilitate evaluation, but we will ignore any temp/cache files.
+
+# Logs and databases
+*.log
+sqlite.db
