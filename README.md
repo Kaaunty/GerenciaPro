@@ -1,6 +1,6 @@
-# ProLink - Sistema de Gerenciamento de Clientes e Produtos
+# GerenciaPro - Sistema de Gerenciamento de Clientes e Produtos
 
-O **ProLink** é um sistema web desenvolvido em PHP para gerenciar o cadastro de clientes, catálogo de produtos e estabelecer a associação entre ambos (relação de muitos-para-muitos). 
+O **GerenciaPro** é um sistema web desenvolvido em PHP para gerenciar o cadastro de clientes, catálogo de produtos e estabelecer a associação entre ambos (relação de muitos-para-muitos). 
 
 Este projeto foi construído focando na simplicidade de execução, robustez no tratamento dos dados e um visual prático e moderno utilizando **Tailwind CSS**.
 
@@ -61,8 +61,8 @@ Depois, abra o navegador e acesse: `http://localhost:8000`
 
 #### Opção B (Colando na pasta do Servidor Local)
 1. Copie a pasta deste projeto.
-2. Cole-a dentro do diretório público do seu servidor web (ex: `C:\xampp\htdocs\prolink`).
-3. Com o Apache e o MySQL ativos no XAMPP, acesse no navegador: `http://localhost/prolink`
+2. Cole-a dentro do diretório público do seu servidor web (ex: `C:\xampp\htdocs\gerenciapro`).
+3. Com o Apache e o MySQL ativos no XAMPP, acesse no navegador: `http://localhost/gerenciapro`
 
 ---
 
