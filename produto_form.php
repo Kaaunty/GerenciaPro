@@ -12,25 +12,40 @@ if ($codigo) {
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $codigo_post = $_POST['p00_codigo'];
-    $descricao = $_POST['p00_descricao'];
-    $preco = str_replace(',', '.', str_replace('.', '', $_POST['p00_preco'])); // Converte 1.234,56 para 1234.56
-    $imposto = str_replace(',', '.', $_POST['p00_imposto']);
+    $codigo_post = trim($_POST['p00_codigo']);
+    $descricao = trim($_POST['p00_descricao']);
+    $preco = parseBrlNumeric($_POST['p00_preco']);
+    $imposto = parseBrlNumeric($_POST['p00_imposto']);
 
-    try {
-        if ($produto) {
-            // Update
-            $stmt = $pdo->prepare("UPDATE p00_produto SET p00_descricao=?, p00_preco=?, p00_imposto=? WHERE p00_codigo=?");
-            $stmt->execute([$descricao, $preco, $imposto, $codigo_post]);
-        } else {
-            // Insert
-            $stmt = $pdo->prepare("INSERT INTO p00_produto (p00_codigo, p00_descricao, p00_preco, p00_imposto) VALUES (?, ?, ?, ?)");
-            $stmt->execute([$codigo_post, $descricao, $preco, $imposto]);
+    // Validações no Back-end
+    if (empty($codigo_post) || strlen($codigo_post) > 15) {
+        $erro = "O código do produto é obrigatório e deve ter no máximo 15 caracteres.";
+    } elseif (empty($descricao) || strlen($descricao) > 45) {
+        $erro = "A descrição é obrigatória e deve ter no máximo 45 caracteres.";
+    } elseif ($preco <= 0) {
+        $erro = "O preço do produto deve ser um valor maior que zero.";
+    } elseif ($imposto < 0) {
+        $erro = "O imposto deve ser um valor maior ou igual a zero.";
+    }
+
+    if (!isset($erro)) {
+        try {
+            if ($produto) {
+                // Update
+                $stmt = $pdo->prepare("UPDATE p00_produto SET p00_descricao=?, p00_preco=?, p00_imposto=? WHERE p00_codigo=?");
+                $stmt->execute([$descricao, $preco, $imposto, $codigo_post]);
+                setFlashMessage("Produto atualizado com sucesso!", "success");
+            } else {
+                // Insert
+                $stmt = $pdo->prepare("INSERT INTO p00_produto (p00_codigo, p00_descricao, p00_preco, p00_imposto) VALUES (?, ?, ?, ?)");
+                $stmt->execute([$codigo_post, $descricao, $preco, $imposto]);
+                setFlashMessage("Produto cadastrado com sucesso!", "success");
+            }
+            header("Location: produtos.php");
+            exit;
+        } catch (\PDOException $e) {
+            $erro = "Erro ao salvar: " . $e->getMessage();
         }
-        header("Location: produtos.php");
-        exit;
-    } catch (\PDOException $e) {
-        $erro = "Erro ao salvar: " . $e->getMessage();
     }
 }
 

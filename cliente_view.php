@@ -15,6 +15,7 @@ if ($action === 'delete') {
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt = $pdo->prepare("DELETE FROM c00_cliente WHERE c00_codigo = ?");
         $stmt->execute([$codigo]);
+        setFlashMessage("Cliente excluído com sucesso!", "success");
         header("Location: clientes.php");
         exit;
     }
@@ -55,7 +56,7 @@ renderHeader($action === 'delete' ? "Excluir Cliente" : "Detalhes do Cliente");
         <div class="grid grid-cols-2 gap-4 mb-6">
             <div>
                 <p class="text-sm text-gray-500">Código</p>
-                <p class="font-medium text-lg"><?= htmlspecialchars($cliente['c00_codigo']) ?></p>
+                <p class="font-medium text-lg"><?= htmlspecialchars(formatCodigoCliente($cliente['c00_codigo'])) ?></p>
             </div>
             <div>
                 <p class="text-sm text-gray-500">Nome</p>

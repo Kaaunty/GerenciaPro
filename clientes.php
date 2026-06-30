@@ -29,7 +29,7 @@ renderHeader("Listagem de Clientes");
             <?php if (count($clientes) > 0): ?>
                 <?php foreach ($clientes as $c): ?>
                     <tr class="hover:bg-gray-50">
-                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900"><?= htmlspecialchars($c['c00_codigo']) ?></td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900"><?= htmlspecialchars(formatCodigoCliente($c['c00_codigo'])) ?></td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?= htmlspecialchars($c['c00_nome']) ?></td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                             <?php 

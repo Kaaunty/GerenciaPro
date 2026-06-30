@@ -2,6 +2,32 @@
 require_once 'config.php';
 require_once 'layout.php';
 
+// API endpoint for fetching available products for a client
+if (isset($_GET['action']) && $_GET['action'] === 'get_available_products') {
+    header('Content-Type: application/json');
+    $cliente_codigo = $_GET['cliente'] ?? '';
+    
+    if ($cliente_codigo) {
+        // Query to find products NOT associated with this client
+        $stmt = $pdo->prepare("
+            SELECT p00_codigo, p00_descricao 
+            FROM p00_produto 
+            WHERE p00_codigo NOT IN (
+                SELECT p00_codigo 
+                FROM c00_p00_cliente_produto 
+                WHERE c00_codigo = ?
+            )
+            ORDER BY p00_descricao
+        ");
+        $stmt->execute([$cliente_codigo]);
+        $available_products = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        echo json_encode($available_products);
+    } else {
+        echo json_encode([]);
+    }
+    exit;
+}
+
 // Handle Add Association
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'add') {
     $c00_codigo = $_POST['cliente'];
@@ -11,10 +37,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         try {
             $stmt = $pdo->prepare("INSERT IGNORE INTO c00_p00_cliente_produto (c00_codigo, p00_codigo) VALUES (?, ?)");
             $stmt->execute([$c00_codigo, $p00_codigo]);
-            $msg = "Associação criada com sucesso!";
+            setFlashMessage("Associação criada com sucesso!", "success");
         } catch (\PDOException $e) {
-            $erro = "Erro ao associar: " . $e->getMessage();
+            setFlashMessage("Erro ao associar: " . $e->getMessage(), "error");
         }
+        header("Location: associacao.php");
+        exit;
     }
 }
 
@@ -26,19 +54,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     try {
         $stmt = $pdo->prepare("DELETE FROM c00_p00_cliente_produto WHERE c00_codigo = ? AND p00_codigo = ?");
         $stmt->execute([$c00_codigo, $p00_codigo]);
-        $msg = "Associação removida com sucesso!";
+        setFlashMessage("Associação removida com sucesso!", "success");
     } catch (\PDOException $e) {
-        $erro = "Erro ao remover associação: " . $e->getMessage();
+        setFlashMessage("Erro ao remover associação: " . $e->getMessage(), "error");
     }
+    header("Location: associacao.php");
+    exit;
 }
 
 // Fetch Clients
 $stmtCli = $pdo->query("SELECT c00_codigo, c00_nome FROM c00_cliente ORDER BY c00_nome");
 $clientes = $stmtCli->fetchAll();
 
-// Fetch Products
-$stmtProd = $pdo->query("SELECT p00_codigo, p00_descricao FROM p00_produto ORDER BY p00_descricao");
-$produtos = $stmtProd->fetchAll();
+
 
 // Fetch All Associations
 $stmtAssoc = $pdo->query("
@@ -57,12 +85,7 @@ renderHeader("Associação Cliente x Produto");
     <div class="bg-white rounded-lg shadow p-6">
         <h2 class="text-2xl font-bold text-gray-800 mb-6"><i class="fas fa-link text-orange-500 mr-2"></i>Nova Associação</h2>
         
-        <?php if (isset($msg)): ?>
-            <div class="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-4"><?= htmlspecialchars($msg) ?></div>
-        <?php endif; ?>
-        <?php if (isset($erro)): ?>
-            <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4"><?= htmlspecialchars($erro) ?></div>
-        <?php endif; ?>
+
 
         <form method="POST" action="" class="flex items-end gap-4">
             <input type="hidden" name="action" value="add">
@@ -71,17 +94,14 @@ renderHeader("Associação Cliente x Produto");
                 <select name="cliente" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring focus:ring-primary focus:ring-opacity-50 p-2 border">
                     <option value="">Selecione um cliente...</option>
                     <?php foreach ($clientes as $c): ?>
-                        <option value="<?= htmlspecialchars($c['c00_codigo']) ?>"><?= htmlspecialchars($c['c00_nome']) ?></option>
+                        <option value="<?= htmlspecialchars($c['c00_codigo']) ?>"><?= htmlspecialchars(formatCodigoCliente($c['c00_codigo'])) ?> - <?= htmlspecialchars($c['c00_nome']) ?></option>
                     <?php endforeach; ?>
                 </select>
             </div>
             <div class="flex-1">
                 <label class="block text-sm font-medium text-gray-700">Produto</label>
-                <select name="produto" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring focus:ring-primary focus:ring-opacity-50 p-2 border">
-                    <option value="">Selecione um produto...</option>
-                    <?php foreach ($produtos as $p): ?>
-                        <option value="<?= htmlspecialchars($p['p00_codigo']) ?>"><?= htmlspecialchars($p['p00_descricao']) ?></option>
-                    <?php endforeach; ?>
+                <select name="produto" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring focus:ring-primary focus:ring-opacity-50 p-2 border" disabled>
+                    <option value="">Selecione um cliente primeiro...</option>
                 </select>
             </div>
             <div>
@@ -104,7 +124,7 @@ renderHeader("Associação Cliente x Produto");
                     <?php foreach ($associacoes as $a): ?>
                         <tr class="hover:bg-gray-50">
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-medium">
-                                <?= htmlspecialchars($a['c00_codigo']) ?> - <?= htmlspecialchars($a['c00_nome']) ?>
+                                <?= htmlspecialchars(formatCodigoCliente($a['c00_codigo'])) ?> - <?= htmlspecialchars($a['c00_nome']) ?>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                 <?= htmlspecialchars($a['p00_codigo']) ?> - <?= htmlspecialchars($a['p00_descricao']) ?>
@@ -128,6 +148,57 @@ renderHeader("Associação Cliente x Produto");
         </table>
     </div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const clienteSelect = document.querySelector('select[name="cliente"]');
+    const produtoSelect = document.querySelector('select[name="produto"]');
+    
+    function updateProducts() {
+        const clienteCod = clienteSelect.value;
+        if (!clienteCod) {
+            produtoSelect.innerHTML = '<option value="">Selecione um cliente primeiro...</option>';
+            produtoSelect.disabled = true;
+            return;
+        }
+        
+        produtoSelect.innerHTML = '<option value="">Carregando produtos...</option>';
+        produtoSelect.disabled = true;
+        
+        fetch(`associacao.php?action=get_available_products&cliente=${encodeURIComponent(clienteCod)}`)
+            .then(res => res.json())
+            .then(products => {
+                produtoSelect.innerHTML = '';
+                if (products.length === 0) {
+                    produtoSelect.innerHTML = '<option value="">Todos os produtos já estão associados!</option>';
+                    produtoSelect.disabled = true;
+                } else {
+                    const defaultOpt = document.createElement('option');
+                    defaultOpt.value = '';
+                    defaultOpt.textContent = 'Selecione um produto...';
+                    produtoSelect.appendChild(defaultOpt);
+                    
+                    products.forEach(p => {
+                        const opt = document.createElement('option');
+                        opt.value = p.p00_codigo;
+                        opt.textContent = `${p.p00_codigo} - ${p.p00_descricao}`;
+                        produtoSelect.appendChild(opt);
+                    });
+                    produtoSelect.disabled = false;
+                }
+            })
+            .catch(err => {
+                console.error(err);
+                produtoSelect.innerHTML = '<option value="">Erro ao carregar produtos</option>';
+            });
+    }
+    
+    clienteSelect.addEventListener('change', updateProducts);
+    
+    // Run on initial load in case a client is already selected
+    updateProducts();
+});
+</script>
 
 <?php
 renderFooter();

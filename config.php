@@ -29,9 +29,29 @@ try {
 }
 
 // Criação das Tabelas
+// Verifica se a tabela c00_cliente existe e se a coluna c00_codigo é do tipo esperado (int)
+$recreate = false;
+try {
+    $q = $pdo->query("DESCRIBE c00_cliente");
+    $cols = $q->fetchAll();
+    foreach ($cols as $col) {
+        if ($col['Field'] === 'c00_codigo' && strpos(strtolower($col['Type']), 'int') === false) {
+            $recreate = true;
+            break;
+        }
+    }
+} catch (\PDOException $e) {
+    // Se a tabela não existe, será criada abaixo
+}
+
+if ($recreate) {
+    $pdo->exec("DROP TABLE IF EXISTS c00_p00_cliente_produto");
+    $pdo->exec("DROP TABLE IF EXISTS c00_cliente");
+}
+
 $sql = "
 CREATE TABLE IF NOT EXISTS c00_cliente (
-    c00_codigo character(6) NOT NULL,
+    c00_codigo INT AUTO_INCREMENT NOT NULL,
     c00_nome character varying(60) NOT NULL,
     c00_pessoa character varying(1) NOT NULL,  
     c00_cnpj character varying(14),  
@@ -49,7 +69,7 @@ CREATE TABLE IF NOT EXISTS p00_produto (
 );
 
 CREATE TABLE IF NOT EXISTS c00_p00_cliente_produto (
-    c00_codigo character(6) NOT NULL,
+    c00_codigo INT NOT NULL,
     p00_codigo character(15) NOT NULL,
     PRIMARY KEY (c00_codigo, p00_codigo),
     FOREIGN KEY (c00_codigo) REFERENCES c00_cliente(c00_codigo) ON DELETE CASCADE,
@@ -59,3 +79,4 @@ CREATE TABLE IF NOT EXISTS c00_p00_cliente_produto (
 
 $pdo->exec($sql);
 ?>
+

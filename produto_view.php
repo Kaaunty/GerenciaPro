@@ -15,6 +15,7 @@ if ($action === 'delete') {
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt = $pdo->prepare("DELETE FROM p00_produto WHERE p00_codigo = ?");
         $stmt->execute([$codigo]);
+        setFlashMessage("Produto excluído com sucesso!", "success");
         header("Location: produtos.php");
         exit;
     }
@@ -109,7 +110,7 @@ renderHeader($action === 'delete' ? "Excluir Produto" : "Detalhes do Produto");
                 <?php foreach ($clientes as $c): ?>
                     <li class="p-4 flex justify-between items-center hover:bg-gray-50">
                         <div>
-                            <span class="font-bold text-gray-700"><?= htmlspecialchars($c['c00_codigo']) ?></span> - <?= htmlspecialchars($c['c00_nome']) ?>
+                            <span class="font-bold text-gray-700"><?= htmlspecialchars(formatCodigoCliente($c['c00_codigo'])) ?></span> - <?= htmlspecialchars($c['c00_nome']) ?>
                         </div>
                         <div class="text-gray-500 text-sm">
                             <?= htmlspecialchars($c['c00_estado']) ?>

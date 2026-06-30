@@ -12,38 +12,62 @@ if ($codigo) {
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $codigo_post = $_POST['c00_codigo'];
-    $nome = $_POST['c00_nome'];
+    $nome = trim($_POST['c00_nome']);
     $pessoa = $_POST['c00_pessoa'];
-    $estado = $_POST['c00_estado'];
+    $estado = strtoupper(trim($_POST['c00_estado']));
     // Tratamento de data: DatePicker retorna AAAA-MM-DD, precisamos gravar AAAAMMDD
     $data_nascimento = str_replace('-', '', $_POST['c00_data_nascimento']);
     
     // Tratamento do CPF/CNPJ Virtual -> c00_cnpj
     $cnpj = '';
     if ($pessoa === 'F') {
-        $cnpj = $_POST['cpf'];
+        $cnpj = $_POST['cpf'] ?? '';
     } elseif ($pessoa === 'J') {
-        $cnpj = $_POST['cnpj'];
+        $cnpj = $_POST['cnpj'] ?? '';
     } else {
-        $cnpj = $_POST['cnpj_outros']; // Pode ser vazio
+        $cnpj = $_POST['cnpj_outros'] ?? ''; // Pode ser vazio
     }
-    $cnpj = preg_replace('/[^0-9]/', '', $cnpj);
+    $cnpj_limpo = preg_replace('/[^0-9]/', '', $cnpj);
 
-    try {
-        if ($cliente) {
-            // Update
-            $stmt = $pdo->prepare("UPDATE c00_cliente SET c00_nome=?, c00_pessoa=?, c00_cnpj=?, c00_estado=?, c00_data_nascimento=? WHERE c00_codigo=?");
-            $stmt->execute([$nome, $pessoa, $cnpj, $estado, $data_nascimento, $codigo_post]);
-        } else {
-            // Insert
-            $stmt = $pdo->prepare("INSERT INTO c00_cliente (c00_codigo, c00_nome, c00_pessoa, c00_cnpj, c00_estado, c00_data_nascimento) VALUES (?, ?, ?, ?, ?, ?)");
-            $stmt->execute([$codigo_post, $nome, $pessoa, $cnpj, $estado, $data_nascimento]);
+    // Validações no Back-end
+    if (empty($nome) || strlen($nome) > 60) {
+        $erro = "O nome é obrigatório e deve ter no máximo 60 caracteres.";
+    } elseif (empty($estado) || strlen($estado) != 2) {
+        $erro = "O estado (UF) é obrigatório e deve ter 2 caracteres.";
+    } elseif (empty($data_nascimento) || strlen($data_nascimento) != 8) {
+        $erro = "A data de nascimento é obrigatória.";
+    } elseif ($pessoa === 'F') {
+        if (empty($cnpj_limpo)) {
+            $erro = "O CPF é obrigatório para Pessoa Física.";
+        } elseif (!validateCpf($cnpj_limpo)) {
+            $erro = "O CPF informado é inválido.";
         }
-        header("Location: clientes.php");
-        exit;
-    } catch (\PDOException $e) {
-        $erro = "Erro ao salvar: " . $e->getMessage();
+    } elseif ($pessoa === 'J') {
+        if (empty($cnpj_limpo)) {
+            $erro = "O CNPJ é obrigatório para Pessoa Jurídica.";
+        } elseif (!validateCnpj($cnpj_limpo)) {
+            $erro = "O CNPJ informado é inválido.";
+        }
+    }
+
+    if (!isset($erro)) {
+        try {
+            if ($cliente) {
+                // Update
+                $stmt = $pdo->prepare("UPDATE c00_cliente SET c00_nome=?, c00_pessoa=?, c00_cnpj=?, c00_estado=?, c00_data_nascimento=? WHERE c00_codigo=?");
+                $stmt->execute([$nome, $pessoa, $cnpj_limpo, $estado, $data_nascimento, $codigo]);
+                setFlashMessage("Cliente atualizado com sucesso!", "success");
+            } else {
+                // Insert (deixa o banco gerar o c00_codigo com auto_increment)
+                $stmt = $pdo->prepare("INSERT INTO c00_cliente (c00_nome, c00_pessoa, c00_cnpj, c00_estado, c00_data_nascimento) VALUES (?, ?, ?, ?, ?)");
+                $stmt->execute([$nome, $pessoa, $cnpj_limpo, $estado, $data_nascimento]);
+                setFlashMessage("Cliente cadastrado com sucesso!", "success");
+            }
+            header("Location: clientes.php");
+            exit;
+        } catch (\PDOException $e) {
+            $erro = "Erro ao salvar: " . $e->getMessage();
+        }
     }
 }
 
@@ -65,20 +89,39 @@ renderHeader($cliente ? "Alterar Cliente" : "Novo Cliente");
     <?php endif; ?>
 
     <form method="POST" action="" class="space-y-4" id="clienteForm">
-        <div class="grid grid-cols-2 gap-4">
-            <div>
-                <label class="block text-sm font-medium text-gray-700">Código (Máx 6)</label>
-                <input type="text" name="c00_codigo" value="<?= $cliente ? htmlspecialchars($cliente['c00_codigo']) : '' ?>" <?= $cliente ? 'readonly' : 'required' ?> maxlength="6" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring focus:ring-primary focus:ring-opacity-50 p-2 border <?= $cliente ? 'bg-gray-100' : '' ?>">
-            </div>
-            <div>
-                <label class="block text-sm font-medium text-gray-700">Estado (Sigla 2)</label>
-                <input type="text" name="c00_estado" value="<?= $cliente ? htmlspecialchars($cliente['c00_estado']) : '' ?>" required maxlength="2" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring focus:ring-primary focus:ring-opacity-50 p-2 border uppercase">
-            </div>
-        </div>
-
         <div>
             <label class="block text-sm font-medium text-gray-700">Nome</label>
             <input type="text" name="c00_nome" value="<?= $cliente ? htmlspecialchars($cliente['c00_nome']) : '' ?>" required maxlength="60" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring focus:ring-primary focus:ring-opacity-50 p-2 border">
+        </div>
+
+        <div class="grid grid-cols-2 gap-4">
+            <?php if ($cliente): ?>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Código</label>
+                    <input type="text" readonly value="<?= htmlspecialchars(formatCodigoCliente($cliente['c00_codigo'])) ?>" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border bg-gray-100 font-medium">
+                </div>
+            <?php endif; ?>
+            <div class="<?= $cliente ? '' : 'col-span-2' ?>">
+                <label class="block text-sm font-medium text-gray-700">Estado</label>
+                <select name="c00_estado" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring focus:ring-primary focus:ring-opacity-50 p-2 border">
+                    <option value="">Selecione...</option>
+                    <?php
+                    $estados = [
+                        'AC' => 'Acre', 'AL' => 'Alagoas', 'AP' => 'Amapá', 'AM' => 'Amazonas',
+                        'BA' => 'Bahia', 'CE' => 'Ceará', 'DF' => 'Distrito Federal', 'ES' => 'Espírito Santo',
+                        'GO' => 'Goiás', 'MA' => 'Maranhão', 'MT' => 'Mato Grosso', 'MS' => 'Mato Grosso do Sul',
+                        'MG' => 'Minas Gerais', 'PA' => 'Pará', 'PB' => 'Paraíba', 'PR' => 'Paraná',
+                        'PE' => 'Pernambuco', 'PI' => 'Piauí', 'RJ' => 'Rio de Janeiro', 'RN' => 'Rio Grande do Norte',
+                        'RS' => 'Rio Grande do Sul', 'RO' => 'Rondônia', 'RR' => 'Roraima', 'SC' => 'Santa Catarina',
+                        'SP' => 'São Paulo', 'SE' => 'Sergipe', 'TO' => 'Tocantins'
+                    ];
+                    foreach ($estados as $sigla => $nome_estado) {
+                        $selected = ($cliente && $cliente['c00_estado'] == $sigla) ? 'selected' : '';
+                        echo "<option value=\"$sigla\" $selected>$sigla - $nome_estado</option>";
+                    }
+                    ?>
+                </select>
+            </div>
         </div>
 
         <div>
@@ -175,6 +218,67 @@ renderHeader($cliente ? "Alterar Cliente" : "Novo Cliente");
     
     // Initial call
     updateFields();
+
+    // Frontend Validations on Submit
+    document.getElementById('clienteForm').addEventListener('submit', (e) => {
+        const pVal = pessoaSelect.value;
+        if (pVal === 'F') {
+            const cpfVal = cpfInput.value.replace(/\D/g, '');
+            if (!validarCPF_JS(cpfVal)) {
+                alert('O CPF informado é inválido!');
+                e.preventDefault();
+                cpfInput.focus();
+            }
+        } else if (pVal === 'J') {
+            const cnpjVal = cnpjInput.value.replace(/\D/g, '');
+            if (!validarCNPJ_JS(cnpjVal)) {
+                alert('O CNPJ informado é inválido!');
+                e.preventDefault();
+                cnpjInput.focus();
+            }
+        }
+    });
+
+    function validarCPF_JS(cpf) {
+        if (cpf.length !== 11 || /^(\d)\1{10}$/.test(cpf)) return false;
+        let soma = 0, resto;
+        for (let i = 1; i <= 9; i++) soma += parseInt(cpf.substring(i-1, i)) * (11 - i);
+        resto = (soma * 10) % 11;
+        if (resto === 10 || resto === 11) resto = 0;
+        if (resto !== parseInt(cpf.substring(9, 10))) return false;
+        soma = 0;
+        for (let i = 1; i <= 10; i++) soma += parseInt(cpf.substring(i-1, i)) * (12 - i);
+        resto = (soma * 10) % 11;
+        if (resto === 10 || resto === 11) resto = 0;
+        if (resto !== parseInt(cpf.substring(10, 11))) return false;
+        return true;
+    }
+
+    function validarCNPJ_JS(cnpj) {
+        if (cnpj.length !== 14 || /^(\d)\1{13}$/.test(cnpj)) return false;
+        let tamanho = cnpj.length - 2;
+        let numeros = cnpj.substring(0, tamanho);
+        let digitos = cnpj.substring(tamanho);
+        let soma = 0;
+        let pos = tamanho - 7;
+        for (let i = tamanho; i >= 1; i--) {
+            soma += numeros.charAt(tamanho - i) * pos--;
+            if (pos < 2) pos = 9;
+        }
+        let resultado = soma % 11 < 2 ? 0 : 11 - (soma % 11);
+        if (resultado !== parseInt(digitos.charAt(0))) return false;
+        tamanho = tamanho + 1;
+        numeros = cnpj.substring(0, tamanho);
+        soma = 0;
+        pos = tamanho - 7;
+        for (let i = tamanho; i >= 1; i--) {
+            soma += numeros.charAt(tamanho - i) * pos--;
+            if (pos < 2) pos = 9;
+        }
+        resultado = soma % 11 < 2 ? 0 : 11 - (soma % 11);
+        if (resultado !== parseInt(digitos.charAt(1))) return false;
+        return true;
+    }
 </script>
 
 <?php
